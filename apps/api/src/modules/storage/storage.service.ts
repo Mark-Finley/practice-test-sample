@@ -4,11 +4,17 @@ import * as path from 'path';
 
 @Injectable()
 export class StorageService {
-  private uploadDir = path.join(__dirname, '..', '..', '..', 'uploads');
+  private uploadDir = process.env.VERCEL
+    ? '/tmp/uploads'
+    : path.join(__dirname, '..', '..', '..', 'uploads');
 
   constructor() {
-    if (!fs.existsSync(this.uploadDir)) {
-      fs.mkdirSync(this.uploadDir, { recursive: true });
+    try {
+      if (!fs.existsSync(this.uploadDir)) {
+        fs.mkdirSync(this.uploadDir, { recursive: true });
+      }
+    } catch (error) {
+      console.warn('Unable to create local uploads folder, skipping for serverless contexts:', error);
     }
   }
 
