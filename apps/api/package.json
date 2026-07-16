@@ -20,6 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:generate": "npx prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:seed": "ts-node -r tsconfig-paths/register prisma/seed.ts",
+    "db:seed-clf": "ts-node -r tsconfig-paths/register src/seed-clf.ts",
     "db:test": "ts-node -r tsconfig-paths/register src/test-db.ts",
     "db:test-auth": "ts-node -r tsconfig-paths/register src/test-auth.ts"
   },
