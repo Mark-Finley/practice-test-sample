@@ -10,11 +10,11 @@ datasource db {
 }
 
 model Organization {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique
-  logoUrl   String?  @map("logo_url")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String     @unique
+  logoUrl   String?    @map("logo_url")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
   users     User[]
 
   @@map("organizations")
@@ -64,6 +64,155 @@ model User {
   isActive       Boolean       @default(true) @map("is_active")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
+  examSessions   ExamSession[]
 
   @@map("users")
+}
+
+model QuestionBank {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String         @unique
+  description   String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  questions     Question[]
+  examTemplates ExamTemplate[]
+
+  @@map("question_banks")
+}
+
+model QuestionCategory {
+  id              String                       @id @default(uuid()) @db.Uuid
+  name            String                       @unique
+  description     String?
+  createdAt       DateTime                     @default(now()) @map("created_at")
+  updatedAt       DateTime                     @updatedAt @map("updated_at")
+  questions       Question[]
+  templateWeights ExamTemplateCategoryWeight[]
+
+  @@map("question_categories")
+}
+
+model Question {
+  id          String           @id @default(uuid()) @db.Uuid
+  bankId      String           @map("bank_id") @db.Uuid
+  bank        QuestionBank     @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  categoryId  String           @map("category_id") @db.Uuid
+  category    QuestionCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  text        String           @db.Text
+  explanation String?          @db.Text
+  difficulty  String           // 'EASY', 'MEDIUM', 'HARD'
+  type        String           // 'SINGLE_CHOICE', 'MULTIPLE_CHOICE'
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  options     QuestionOption[]
+  answers     Answer[]
+
+  @@index([bankId])
+  @@index([categoryId])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String   @id @default(uuid()) @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @map("is_correct")
+
+  @@map("question_options")
+}
+
+model ExamTemplate {
+  id             String                       @id @default(uuid()) @db.Uuid
+  name           String                       @unique
+  bankId         String                       @map("bank_id") @db.Uuid
+  bank           QuestionBank                 @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  totalQuestions Int                          @map("total_questions")
+  duration       Int                          // in minutes
+  passingScore   Int                          @map("passing_score") // e.g. 70 for 70%
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
+  categoryWeights ExamTemplateCategoryWeight[]
+  examSessions   ExamSession[]
+
+  @@map("exam_templates")
+}
+
+model ExamTemplateCategoryWeight {
+  templateId    String           @map("template_id") @db.Uuid
+  categoryId    String           @map("category_id") @db.Uuid
+  questionCount Int              @map("question_count")
+  template      ExamTemplate     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  category      QuestionCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([templateId, categoryId])
+  @@map("exam_template_category_weights")
+}
+
+model ExamSession {
+  id                    String        @id @default(uuid()) @db.Uuid
+  candidateId           String        @map("candidate_id") @db.Uuid
+  candidate             User          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  templateId            String        @map("template_id") @db.Uuid
+  template              ExamTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  status                String        // 'INITIALIZED', 'ACTIVE', 'PAUSED', 'COMPLETED', 'TERMINATED'
+  startedAt             DateTime      @default(now()) @map("started_at")
+  pausedAt              DateTime?     @map("paused_at")
+  endedAt               DateTime?     @map("ended_at")
+  timeRemainingSeconds  Int           @map("time_remaining_seconds")
+  ipAddress             String?       @map("ip_address")
+  browserUserAgent      String?       @map("browser_user_agent")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  answers               Answer[]
+  attempt               ExamAttempt?
+  proctorLogs           ProctorLog[]
+
+  @@index([candidateId])
+  @@index([status])
+  @@map("exam_sessions")
+}
+
+model ExamAttempt {
+  id            String      @id @default(uuid()) @db.Uuid
+  sessionId     String      @unique @map("session_id") @db.Uuid
+  session       ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  score         Float
+  isPassed      Boolean     @map("is_passed")
+  reportJson    Json        @map("report_json")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@map("exam_attempts")
+}
+
+model Answer {
+  id                String      @id @default(uuid()) @db.Uuid
+  sessionId         String      @map("session_id") @db.Uuid
+  session           ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionId        String      @map("question_id") @db.Uuid
+  question          Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  optionIds         String[]    @map("option_ids")
+  isFlagged         Boolean     @default(false) @map("is_flagged")
+  timeSpentSeconds  Int         @default(0) @map("time_spent_seconds")
+  sortOrder         Int         @map("sort_order")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  @@index([sessionId])
+  @@index([questionId])
+  @@map("answers")
+}
+
+model ProctorLog {
+  id            String      @id @default(uuid()) @db.Uuid
+  sessionId     String      @map("session_id") @db.Uuid
+  session       ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventType     String      @map("event_type")
+  timestamp     DateTime    @default(now())
+  severity      String
+  snapshotUrl   String?     @map("snapshot_url")
+  details       Json?       @map("details")
+
+  @@index([sessionId])
+  @@map("proctor_logs")
 }
